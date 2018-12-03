@@ -9,9 +9,13 @@ platform is recommended to follow the installation proccess described in the
 
 ## Why?
 
-**tl;dr** By packagign the CMS components the deployment (installation) process
-complexity and time should be reduced.
+**tl;dr** By packagign CMS platform components the deployment (installation)
+process complexity and time should be reduced.
 
-# Credits
+## Making it run
+
+**TODO**
+
+## Credits
 
 - [CMS](https://github.com/cms-dev/cms) platform and [CMS community](https://github.com/cms-dev/cms/blob/master/AUTHORS.txt)

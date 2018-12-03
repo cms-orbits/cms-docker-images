@@ -74,4 +74,13 @@ RUN set -ex \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/*
 
-# TODO: entrypoint with dynamic config
+#
+# Add entrypoint and config. generator scripts
+#
+COPY files/genconfig.py /usr/local/bin/genconfig.py
+COPY 1.3/entrypoint.sh /entrypoint.sh
+
+RUN chmod ugo+x /entrypoint.sh /usr/local/bin/genconfig.py
+
+ENTRYPOINT [ "/entrypoint.sh" ]
+CMD ["help"]
