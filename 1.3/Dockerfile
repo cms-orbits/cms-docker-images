@@ -9,7 +9,7 @@ ARG CMS_VERSION=v1.3.2
 #
 RUN addgroup --gid ${CMS_GID} cmsuser \
     && adduser --disabled-login --uid ${CMS_UID} --gid ${CMS_GID} --gecos '' \
-        --no-create-home --shell /bin/false cmsuser
+               --no-create-home --shell /bin/false cmsuser
 
 #
 # Install CMS with alongside its dependencies.
@@ -17,8 +17,7 @@ RUN addgroup --gid ${CMS_GID} cmsuser \
 # The CMS 1.3.x releases require some extra steps due the dated 'bcrypt==2.0.0' 
 # dependency, since it relies on 'gnu-crypt.h' glibc ~2.4 header which has 
 # been replaced by crypt.h in glibc 2.24. The generated image layer will *only*  
-# contain CMS binaries alongside the python modules and linked shared objects 
-# that it requires. 
+# contain CMS binaries alongside the python modules and required shared objects.
 RUN set -ex \
     && SAVED_PKGS="$(apt-mark showmanual)" \
     && apt-get update \ 
@@ -44,9 +43,9 @@ RUN set -ex \
     && BCRYPT_DIR=$(mktemp -d '/tmp/XXXXXX') \
     && pip download --no-cache-dir -d $BCRYPT_DIR bcrypt==2.0.0 \
     && tar -xvzC $BCRYPT_DIR -f $BCRYPT_DIR/bcrypt-2.0.0.tar.gz \
-    && cd $BCRYPT_DIR/bcrypt-2.0.0 \
-    && sed -i '/gnu-crypt/d' src/crypt_blowfish-1.3/crypt.h \ 
-    && python ./setup.py install \
+    && cd $BCRYPT_DIR \
+    && sed -i '/gnu-crypt/d' bcrypt-2.0.0/src/crypt_blowfish-1.3/crypt.h \
+    && pip install ./bcrypt-2.0.0 \
     \
     && wget -O cms.tar.gz https://github.com/cms-dev/cms/releases/download/${CMS_VERSION}/${CMS_VERSION}.tar.gz \
     && mkdir -p /usr/local/src/cms \
