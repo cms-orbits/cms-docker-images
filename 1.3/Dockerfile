@@ -32,6 +32,7 @@ RUN set -ex \
         libffi-dev \
         libcups2-dev \
         libcap-dev \
+        cgroupfs-mount \
         gcc \
         libc6 \
         bcrypt \
@@ -57,12 +58,18 @@ RUN set -ex \
     && python ./prerequisites.py install_conf \
     && awk '!/assert_not_root/ || !f++' prerequisites.py > prerequisites-tweaked.py \
     && python ./prerequisites-tweaked.py build_l10n \
+    && python ./prerequisites-tweaked.py build_isolate \
+    && python ./prerequisites-tweaked.py install_isolate \
     && rm ./prerequisites-tweaked.py \
     && python ./setup.py install \
     && ldconfig \
     \
     && apt-mark auto '.*' > /dev/null \
-    && apt-mark manual $SAVED_PKGS \
+    && apt-mark manual \
+        iso-codes \
+        shared-mime-info \
+        libcap2 \
+        $SAVED_PKGS \
     && find /usr/local -type f -executable -not \( -name '*tkinter*' \) -exec ldd '{}' ';' \
         | awk '/=>/ { print $(NF-1) }' \
         | sort -u \

@@ -9,16 +9,14 @@ case "${1}" in
         echo 'Please refer to the CMS manual for more information about their arguments or the available utility ones.'
     ;;
     "cmsRankingWebServer")
-        genconfig.py --dry-run /usr/local/etc/cms.ranking.conf
+        genconfig.py /usr/local/etc/cms.ranking.conf
         exec "$@"
     ;;
     "cmsWorker")
         echo "WARNING: THE CMS WORKER CONTAINER SHOULD ONLY RUN AS PRIVILEGED"
-        genconfig.py --dry-run /usr/local/etc/cms.conf
-        exec "$@"
-    ;;
+    ;&
     "cms"*)
-        genconfig.py --dry-run /usr/local/etc/cms.conf
+        genconfig.py /usr/local/etc/cms.conf
         exec "$@"
     ;;
     *)
