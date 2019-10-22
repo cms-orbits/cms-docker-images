@@ -1,144 +1,16 @@
 #!/usr/bin/env python
 
-"""Overrides CMS configuration properties with the existing 'CMS_' prefixed
-enviroment variable values.
-
-Each CMS configuration property is mapped as an enviroment variable in a similar
-fashion as spring relaxed binding[0] does, where each property name is
-transformed to upper case format using double underscore "__" as subschema
-delimiter.
-
-For example the "core_services.ResourceService" property can be overriden as
-"CMS_CORE_SERVICES__RESOURCESERVICE"
-
-[0] https://docs.spring.io/spring-boot/docs/current/reference/html/boot-features-external-config.html#boot-features-external-config-relaxed-binding
+"""Overrides CMS default configuration properties by applying all the 'CMS_'
+prefixed enviroment variable values.
 """
 
+from jsonpath_ng import jsonpath, parse
 import argparse
 import json
 import logging
 import os
+import re
 import sys
-
-SPECIAL_PROPERTIES = ["core_services", "database"]
-
-def prepare_core_services(config):
-    """Replace any 'localhost' reference from 'config' map.
-    """
-    if "core_services" in config:
-        services = config["core_services"]
-        for service_name, service_coords in services.iteritems():
-            for service_tuple in service_coords:
-                service_tuple[0] = service_name.lower()
-        config["_core_services"] = services
-    return config
-
-def set_configurations(base, overrides):
-    """Insert generic configurations from 'overrides' map into the 'base' one.
-    """
-    for prop_name in SPECIAL_PROPERTIES:
-        base[prop_name] = {}
-
-    for path_str, value in overrides.iteritems():
-        path = path_str.lower().split('__')
-        try:
-            set_prop(base, path, value)
-        except KeyError:
-            logging.error("Invalid CMS property: %s", ".".join(path))
-
-def bake_special_confiurations(config):
-    """Transform and insert 'database' and 'core_services' sections into the
-    CMS configuration map.
-    """
-    db_coordinates = config["database"]
-    if isinstance(db_coordinates, dict):
-        config["database"] = gen_database_string(db_coordinates)
-
-    if "_core_services" in config:
-        config["core_services"] = gen_coreservices_map(
-            config["_core_services"],
-            config["core_services"])
-
-        del config["_core_services"]
-
-def gen_coreservices_map(default, override):
-    """Transform and apply 'override' map into the given 'default' one.
-    """
-    override = coresservice_map_camelcases(override)
-
-    for name, value in override.iteritems():
-        if name in default:
-            default[name] = transform_coreservice_map_value(value)
-        else:
-            logging.error("Can not find '%s' service", name)
-
-    return default
-
-def coresservice_map_camelcases(services):
-    """Transform 'services' map string keys into camelcases (for specific
-    scenarios).
-
-    >>> coresservice_map_camelcases({"worker": "worker:1234"})
-    {"Worker": "worker:1234"}
-    >>> coresservice_map_camelcases({"contestwebserver": "cms:1234"})
-    {"ContestWeServer": "cms:1234"}
-    """
-    return {key.capitalize().replace("web", "Web").replace("serv", "Serv"): services[key] for key in services}
-
-def transform_coreservice_map_value(str_value):
-    """Transform a comma separated host port string into a list of lists,
-    just as used by CMS configuration.
-
-    >>> transform_coreservice_map_value("thehost:3506")
-    [["thehost",3506]]
-    >>> transform_coreservice_map_value("onehost:3606,other,foobar:2356")
-    [["onehost",3606],["foobar",2356]]
-    """
-    if str_value is None:
-        return [[]]
-
-    host_list = []
-
-    for token in str_value.split(","):
-        host_port = token.split(":")
-        if len(host_port) == 2:
-            host_port[1] = int(host_port[1])
-            host_list.append(host_port)
-
-    return host_list
-
-def gen_database_string(overrides):
-    """Generates postgresql connection string with the given overrides map.
-
-    >>> gen_database_string({})
-    postgresql+psycopg2://cmsuser:notsecure@postgresql:5432/cmsdb
-    >>> gen_database_string({"user": "foobar", "host": "localhost"})
-    postgresql+psycopg2://foobar:notsecure@postgresql:5432/cmsdb
-    """
-
-    db_str = "postgresql+psycopg2://{user}:{password}@{host}:{port}/{name}"
-    db_coordinates = {
-        "name": "cmsdb",
-        "user": "cmsuser",
-        "password": "notsecure",
-        "host": "postgresql",
-        "port": "5432"
-    }
-    db_coordinates.update(overrides)
-    return db_str.format(**db_coordinates)
-
-def set_prop(obj, path, value):
-    """Set property 'value' into 'obj' using the given 'path' list.
-    """
-    logging.debug("Set %s", ".".join(path) + " = " + value)
-    if isinstance(obj, dict):
-        if len(path) == 1:
-            old = obj[path[0]] if path[0] in obj else None
-            obj[path[0]] = cast_to(old, value)
-        else:
-            set_prop(obj[path[0]], path[1:], value)
-    else:
-        logging.error("Unable to set property: %s", str(path))
 
 def cast_to(old, str_value):
     """Tranform string to the type of the given (first argument) value.
@@ -148,48 +20,104 @@ def cast_to(old, str_value):
     if isinstance(old, (list, tuple)):
         return [cast_to(old[0], str_value)]
     if isinstance(old, dict):
-        logging.error("Can not override dictionary value ")
+        logging.error("Can not override dictionary value")
         return {}
     if isinstance(old, bool):
-        return str_value in ["true", "True", "TRUE"]
+        return str_value in ["true", "True", "TRUE", "yes", "y"]
 
     old_type = type(old)
     return old_type(str_value)
 
+def simple_map(storage, value, path):
+    """Updates a storage property using the given JSON path
+    """
+    jsonpath_obj = parse(path)
+    match = jsonpath_obj.find(storage)
+
+    if any(match):
+        if isinstance(value, str):
+            jsonpath_obj.update(storage, cast_to(match[0].value, value))
+        else:
+            jsonpath_obj.update(storage, value)
+
+def address_list_map(storage, value, path):
+    """Updates a storage address mapping using the given JSON path
+    """
+    new_value = [val.split(':') for val in value.split(',')]
+    simple_map(storage, new_value, path)
+
+def list_map(storage, value, path):
+    """Updates a storage property list using the given JSON path  with the given
+    comma separated value
+    """
+    new_value = [val for val in value.split(',')]
+    simple_map(storage, new_value, path)
+
+def database_map (storage, value, path):
+    """Database specific function, Updates a storage database property using the
+    special "database.*" JSON path, replacing the given value from the database
+    connection string.
+
+    The database connection without any change should look like this:
+    postgresql+psycopg2://cmsuser:your_password_here@localhost/cmsdb
+    """
+    basepath, override_key = path.split('.')
+    jsonpath_obj = parse(basepath)
+
+    old_value = jsonpath_obj.find(storage)[0].value
+    m = re.search(r'postgresql\+psycopg2://(?P<user>\w+):(?P<pswd>[^\@]+)@(?P<host>[^:/]+)(:(?P<port>\d+))?/(?P<name>.+)', old_value)
+
+    coordinates = {
+        "name": m.group('name'),
+        "user": m.group('user'),
+        "pswd": m.group('pswd'),
+        "host": m.group('host'),
+        "port": m.group('port') if m.group('port') else 5432
+    }
+    coordinates[override_key] = value
+
+    new_value = "postgresql+psycopg2://{user}:{pswd}@{host}:{port}/{name}".format(**coordinates)
+    jsonpath_obj.update(storage, new_value)
+
+def set_configurations(config, overrides):
+    """Iterates thought overrides map and update the configurations related to
+    them.
+    """
+    for name, value in overrides.iteritems():
+        if name not in override_mappings:
+            continue
+        path, map_func = override_mappings[name]
+        map_func(config, value, path)
+
+# Auto-generated value
+override_mappings = {"GLOBAL_TMP_DIR":("temp_dir",simple_map),"GLOBAL_BACKDOOR":("backdoor",simple_map),"GLOBAL_COOKIE_SCRT":("secret_key",simple_map),"GLOBAL_DEBUG":("tornado_debug",simple_map),"ADDR_LOG_SRV":("core_services.LogService",address_list_map),"ADDR_RSCR_SRV":("core_services.ResourceService",address_list_map),"ADDR_SCOR_SRV":("core_services.ScoringService",address_list_map),"ADDR_CHCK_SRV":("core_services.Checker",address_list_map),"ADDR_EVAL_SRV":("core_services.EvaluationService",address_list_map),"ADDR_CWS":("core_services.ContestWebServer",address_list_map),"ADDR_ADMIN_WS":("core_services.AdminWebServer",address_list_map),"ADDR_PROXY_SRV":("core_services.ProxyService",address_list_map),"ADDR_PRINT_SRV":("core_services.PrintingService",address_list_map),"ADDR_WORKERS":("core_services.Worker",address_list_map),"ADDR_TFILE_CACHER":("other_services.TestFileCacher",address_list_map),"DB_USER":("database.user",database_map),"DB_PSWD":("database.pswd",database_map),"DB_NAME":("database.name",database_map),"DB_HOST":("database.host",database_map),"DB_PORT":("database.port",database_map),"DB_DEBUG":("database_debug",simple_map),"DB_2PHASE_COMMIT":("twophase_commit",simple_map),"WRK_KEEP_SANDBOX":("keep_sandbox",simple_map),"WRK_MAX_FILE_SIZE":("max_file_size",simple_map),"CWS_LISTEN_ADDR":("contest_listen_address",list_map),"CWS_LISTEN_PORT":("contest_listen_port",list_map),"CWS_COOKIE_TTL":("cookie_duration",simple_map),"CWS_PROXY_COUNT":("num_proxies_used",simple_map),"CWS_KEEP_FILE_UPLOAD":("submit_local_copy",simple_map),"CWS_FILE_UPLOAD_PATH":("submit_local_copy_path",simple_map),"CWS_ENTRY_UPLOAD_LIMIT":("max_submission_length",simple_map),"CWS_INPUT_UPLOAD_LIMIT":("max_input_length",simple_map),"WS_ADMIN_LISTEN_ADDR":("admin_listen_address",list_map),"WS_ADMIN_LISTEN_PORT":("admin_listen_port",list_map),"WS_ADMIN_COOKIE_TTL":("admin_cookie_duration",simple_map),"RANK_URL":("rankings",simple_map),"RANK_CERT":("https_certfile",simple_map)}
 
 def main():
-    """Parse arguments and updates CMS configuration files.
+    """Parse arguments and print CMS configuration to STDOUT.
     """
     parser = argparse.ArgumentParser(description=__doc__[:__doc__.find("."):])
-    parser.add_argument("targetconf", help="Configuration file path")
+    parser.add_argument("baseconf", help="Initial configuration filepath")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="increase output verbosity")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Print to STDOUT the result instead of ovewriting \
-                        target configuration file")
     args = parser.parse_args()
 
     logging.basicConfig(format='[%(levelname)s] %(message)s',
                         level=logging.DEBUG if args.verbose else logging.ERROR)
 
-    logging.info("Target configuraiton file: %s", args.targetconf)
-    with open(args.targetconf) as config_file:
+    logging.info("Base configuraiton filepath: %s", args.baseconf)
+    with open(args.baseconf) as config_file:
         config = json.load(config_file)
-    config = prepare_core_services(config)
 
     prop_names = filter(lambda k: k.startswith('CMS_'), os.environ)
     overrides = {key[4:]: os.environ[key] for key in prop_names}
-    logging.debug("Override map: %s", str(overrides))
+    logging.info("Overrides to map: %s", str(overrides))
 
     set_configurations(config, overrides)
-    bake_special_confiurations(config)
 
-    if args.dry_run:
-        print(json.dumps(config, indent=2))
-    else:
-        with open(args.targetconf, 'w') as config_file:
-            config_file.write(json.dumps(config, indent=2))
-    return 0
+    print json.dumps(config, indent=2)
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        main()
+    except:
+        sys.exit(-1)

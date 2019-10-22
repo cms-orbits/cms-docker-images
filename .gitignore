@@ -1,2 +1,5 @@
 .vscode
 *~
+
+# Python virtual env.
+/penv
