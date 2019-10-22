@@ -3,20 +3,20 @@
 
 case "${1}" in
     "help")
-        echo -n 'Run any CMS service, server or utility script as container. ' 
+        echo -n 'Run any CMS service, server or utility script as container. '
         echo 'The following are the main CMS starting scripts:'
         ls /usr/local/bin/cms{*Service,*Server,*Worker} | xargs -n1 basename | sed -e 's/^/- /'
         echo 'Please refer to the CMS manual for more information about their arguments or the available utility ones.'
     ;;
     "cmsRankingWebServer")
-        genconfig.py /usr/local/etc/cms.ranking.conf
+        genconfig.py /usr/local/src/cms/config/cms.ranking.conf.sample > /usr/local/etc/cms.ranking.conf
         exec "$@"
     ;;
     "cmsWorker")
         echo "WARNING: THE CMS WORKER CONTAINER SHOULD ONLY RUN AS PRIVILEGED"
     ;&
     "cms"*)
-        genconfig.py /usr/local/etc/cms.conf
+        genconfig.py /usr/local/src/cms/config/cms.conf.sample > /usr/local/etc/cms.conf
         exec "$@"
     ;;
     *)

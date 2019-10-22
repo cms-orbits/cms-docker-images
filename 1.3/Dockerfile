@@ -14,13 +14,13 @@ RUN addgroup --gid ${CMS_GID} cmsuser \
 #
 # Install CMS with alongside its dependencies.
 #
-# The CMS 1.3.x releases require some extra steps due the dated 'bcrypt==2.0.0' 
-# dependency, since it relies on 'gnu-crypt.h' glibc ~2.4 header which has 
-# been replaced by crypt.h in glibc 2.24. The generated image layer will *only*  
+# The CMS 1.3.x releases require some extra steps due the dated 'bcrypt==2.0.0'
+# dependency, since it relies on 'gnu-crypt.h' glibc ~2.4 header which has
+# been replaced by crypt.h in glibc 2.24. The generated image layer will *only*
 # contain CMS binaries alongside the python modules and required shared objects.
 RUN set -ex \
     && SAVED_PKGS="$(apt-mark showmanual)" \
-    && apt-get update \ 
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
         gettext \
@@ -62,6 +62,9 @@ RUN set -ex \
     && python ./prerequisites-tweaked.py install_isolate \
     && rm ./prerequisites-tweaked.py \
     && python ./setup.py install \
+    \
+    && pip install --no-cache-dir jsonpath-ng \
+    \
     && ldconfig \
     \
     && apt-mark auto '.*' > /dev/null \
@@ -82,12 +85,15 @@ RUN set -ex \
     && rm -rf /tmp/*
 
 #
-# Add entrypoint and config. generator scripts
+# Add entrypoint, config. generation scripts and required CMS directories
 #
 COPY files/genconfig.py /usr/local/bin/genconfig.py
 COPY 1.3/entrypoint.sh /entrypoint.sh
 
-RUN chmod ugo+x /entrypoint.sh /usr/local/bin/genconfig.py
+RUN chmod ugo+x /entrypoint.sh /usr/local/bin/genconfig.py \
+    && for n in log cache lib run; do mkdir -p /var/local/${n}/cms; \
+      chown ${CMS_UID}:${CMS_GID} /var/local/${n}/cms; \
+    done
 
 ENTRYPOINT [ "/entrypoint.sh" ]
 CMD ["help"]
