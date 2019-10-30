@@ -2,7 +2,8 @@ FROM python:2.7-slim
 
 ARG CMS_UID=1000
 ARG CMS_GID=1000
-ARG CMS_VERSION=v1.3.2
+ARG CMS_SHA=d930038459287d5d9858c16ee94340d248c37130
+ARG ISOLATE_VERSION=1.7
 
 #
 # Create 'cmsuser' user and group
@@ -32,7 +33,6 @@ RUN set -ex \
         libffi-dev \
         libcups2-dev \
         libcap-dev \
-        cgroupfs-mount \
         gcc \
         libc6 \
         bcrypt \
@@ -48,18 +48,21 @@ RUN set -ex \
     && sed -i '/gnu-crypt/d' bcrypt-2.0.0/src/crypt_blowfish-1.3/crypt.h \
     && pip install ./bcrypt-2.0.0 \
     \
-    && wget -O cms.tar.gz https://github.com/cms-dev/cms/releases/download/${CMS_VERSION}/${CMS_VERSION}.tar.gz \
+    && wget -O cms.tar.gz https://github.com/cms-dev/cms/archive/${CMS_SHA}.tar.gz \
     && mkdir -p /usr/local/src/cms \
     && tar -xvzC /usr/local/src/cms --strip-components=1 -f cms.tar.gz \
     && rm cms.tar.gz \
+    \
+    && wget -O isolate.tar.gz https://github.com/ioi/isolate/archive/v${ISOLATE_VERSION}.tar.gz \
+    && tar -xvzC /usr/local/src/cms/isolate --strip-components=1 -f isolate.tar.gz \
+    && rm isolate.tar.gz \
+    \
     && cd /usr/local/src/cms \
     && pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir psycopg2-binary \
     && python ./prerequisites.py install_conf \
     && awk '!/assert_not_root/ || !f++' prerequisites.py > prerequisites-tweaked.py \
     && python ./prerequisites-tweaked.py build_l10n \
-    && python ./prerequisites-tweaked.py build_isolate \
-    && python ./prerequisites-tweaked.py install_isolate \
     && rm ./prerequisites-tweaked.py \
     && python ./setup.py install \
     \
@@ -88,7 +91,7 @@ RUN set -ex \
 # Add entrypoint, config. generation scripts and required CMS directories
 #
 COPY files/genconfig.py /usr/local/bin/genconfig.py
-COPY 1.3/entrypoint.sh /entrypoint.sh
+COPY canary/entrypoint.sh /entrypoint.sh
 
 RUN chmod ugo+x /entrypoint.sh /usr/local/bin/genconfig.py \
     && for n in log cache lib run; do mkdir -p /var/local/${n}/cms; \
