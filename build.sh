@@ -4,13 +4,13 @@ set -euo pipefail
 GOAL=${1-default}
 
 ##
-# Updates 'override_mappings' variable value within 'files/genconfig.py' script
-# based on table for configuration name mapping in 'files/configuration_map.tsv'
+# Updates 'OVERRIDE_MAPPINGS' constant value in 'files/genconfig.py' script
+# based on the configuration name mapping table in 'files/configuration_map.tsv'
 # file
 update_genconfig_map() {
     local map
     map=$(tail -n+2 files/configuration_map.tsv | awk '{print "\""$1"\""":" "(""\""$2"\""","$3")"}' | paste -sd,)
-    sed -i "/# Auto-generated value/{n;s/override_mappings =.*/override_mappings = \{$map\}/}" files/genconfig.py
+    sed -i "/# Auto-generated value/{n;s/OVERRIDE_MAPPINGS =.*/OVERRIDE_MAPPINGS = \{$map\}/}" files/genconfig.py
 }
 
 ##

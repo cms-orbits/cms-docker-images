@@ -6,7 +6,7 @@ case "${1}" in
         echo -n 'Run any CMS service, server or utility script as container. '
         echo 'The following are the main CMS starting scripts:'
         ls /usr/local/bin/cms{*Service,*Server,*Worker} | xargs -n1 basename | sed -e 's/^/- /'
-        echo 'Please refer to the CMS manual for more information about their arguments or the available utility ones.'
+        echo 'Please refer to the CMS manual further information about their arguments or the available utility ones.'
     ;;
     "cmsRankingWebServer")
         genconfig.py /usr/local/src/cms/config/cms.ranking.conf.sample > /usr/local/etc/cms.ranking.conf

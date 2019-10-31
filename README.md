@@ -15,11 +15,14 @@ and deployment process time and complexity *should* be reduced.
 ## Make it run
 
 By desing [CMS](https://cms.readthedocs.io/en/latest/Introduction.html#services)
+
 spins up about 10 separated process from the same code base. Because of this the
-CMS Docker image takes a similar approach, by allowing the user to spin a single
-CMS process (Service, server, worker or utility) per container, delegating the
-orchestration to a separated component like [docker-compose](https://docs.docker.com/compose/),
-or [Kubernetes](https://kubernetes.io/).
+CMS Docker image takes a bit different approach, by allowing the user to spin a
+single CMS process (Service, server, worker or utility) per container,
+delegating the orchestration to a separated component like
+[docker-compose](https://docs.docker.com/compose/), or
+[Kubernetes](https://kubernetes.io/), moving away from `cmsResourceService`
+usage as process supervisor.
 
 In order to run a CMS process you only need to use the `docker container run`
 command and pass the CMS process name and its arguments at the end of the
@@ -39,7 +42,7 @@ Run any CMS service, server or utility script as container. The following are th
 - cmsResourceService
 - cmsScoringService
 - cmsWorker
-Please refer to the CMS manual for more information about their arguments or the available utility ones.
+Please refer to the CMS manual further information about their arguments or the available utility ones.
 ```
 
 For example if you need to spin up the CMS AdminWebServer, using its default
@@ -83,7 +86,7 @@ core_services.PrintingService | CMS_ADDR_PRINT_SRV | localhost:25123 | Network a
 core_services.ProxyService | CMS_ADDR_PROXY_SRV | localhost:28600 | Network address to communicate with `ProxyService` through RPC protocol
 core_services.ResourceService | CMS_ADDR_RSCR_SRV | localhost:28000 | Network address to communicate with `ResourceService` through RPC protocol
 core_services.ScoringService | CMS_ADDR_SCOR_SRV | localhost:28500 | Network address to communicate with `ScoringService` through RPC protocol
-core_services.Worker | CMS_ADDR_WORKERS | localhost:26000,localhost:26001,localhost:26002,localhost:26003 | Network address to communicate with `Worker`'s through RPC protocol
+core_services.Worker | CMS_ADDR_WORKERS | localhost:26000,localhost:26001 | Network address to communicate with `Worker`'s through RPC protocol
 other_services.TestFileCacher | CMS_ADDR_TFILE_CACHER | localhost:27501 | Network address to communicate with `TestFileCacher` through RPC protocol
 database.host | CMS_DB_HOST | localhost | PostgreSQL datasource host
 database.port | CMS_DB_PORT | 5432 | PostgreSQL datasource port
@@ -123,7 +126,7 @@ it in your local environment. For this you will need:
 
 1. Docker engine 17.x or greater
 2. POSIX complaint shell
-3. Python 2.7.x + `jsonpath-ng` (only if you need to modify `files/genconfig.py`)
+3. Python virtual environment with Python 2.7.x + `jsonpath-ng` (only if you need to modify `files/genconfig.py`)
 
 ### Change a configuration mapping (JSON Path to ENV)
 

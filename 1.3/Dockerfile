@@ -72,6 +72,7 @@ RUN set -ex \
         iso-codes \
         shared-mime-info \
         libcap2 \
+        stl-manual \
         $SAVED_PKGS \
     && find /usr/local -type f -executable -not \( -name '*tkinter*' \) -exec ldd '{}' ';' \
         | awk '/=>/ { print $(NF-1) }' \
